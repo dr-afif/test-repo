@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>HSAAS On-Call Doctor Dashboard</title>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1976d2">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+
+  <header id="app-header">
+  <img src="icons/logo.png" alt="Logo" id="logo">
+  <h1 class="header-title">HSAAS <br> On-Call Doctors</h1>
+  <div id="header-date"></div>
+</header>
+
+  <main id="doctor-list">
+    Loading...
+  </main>
+
+  <footer id="app-footer">
+    <small id="last-updated"></small><br>
+    <small>&copy; Dr. Muhammad Afif Abdullah 2025</small>
+  </footer>
+
+  <script src="script.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(reg => console.log('ServiceWorker registered:', reg.scope))
+          .catch(err => console.log('SW registration failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>

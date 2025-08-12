@@ -1,0 +1,128 @@
+/* General reset */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: #f7f9fc;
+  color: #222;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Header - centered with stacked layout */
+#app-header {
+  background: linear-gradient(90deg, #1976d2, #2196f3);
+  color: white;
+  padding: 1rem;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+#logo {
+  height: 100px; /* slightly smaller than before */
+  width: auto;
+  margin-bottom: 0.5rem;
+}
+
+.header-title {
+  font-size: 2rem; /* smaller than before */
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+#header-date {
+  font-size: 1.5rem;
+  opacity: 0.9;
+}
+
+
+/* Doctor cards */
+.doctor-card {
+  background: white;
+  margin: 0.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+.doctor-card h2 {
+  background: #d1eeff;
+  padding: 0.75rem 1rem;
+  font-size: 1.5rem;
+  border-bottom: 1px solid #e0e6ed;
+}
+.doctor-card h3 {
+  padding: 1rem 1rem 0.15rem;
+  font-size: 1.2rem;
+  font-style:italic;
+  font-weight: bolder;
+  color: #1976d2;
+  /* border-top: 1px solid #e0e6ed; */
+}
+
+/* Doctor row */
+.doctor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #d1eeff;
+}
+.doctor-info {
+  display: flex;
+  flex-direction: column;
+}
+.doctor-info strong {
+  font-size: 1rem;
+}
+.doctor-info span {
+  font-size: 0.85rem;
+  color: #666;
+}
+.contact-icons {
+  display: flex;
+  gap: 0.5rem;
+}
+.icon-link svg {
+  width: 28px;
+  height: 28px;
+  transition: transform 0.2s ease;
+}
+.icon-link:hover svg {
+  transform: scale(1.2);
+}
+
+/* Footer */
+#app-footer {
+  text-align: center;
+  padding: 0.8rem;
+  font-size: 0.8rem;
+  color: #666;
+  border-top: 1px solid #ddd;
+  margin-top: auto;
+}
+
+/* Loading spinner */
+.loading-spinner {
+  border: 6px solid #eee;
+  border-top: 6px solid #1976d2;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 16px auto;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .header-title {
+    font-size: 1.5rem;
+  }
+  #logo {
+    height: 70px;
+  }
+}
