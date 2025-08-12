@@ -2,7 +2,6 @@ const BACKEND_URL = 'https://sheets-proxy-backend.onrender.com';
 
 const now = new Date();
 const today = new Date(now);
-
 if (now.getHours() < 8) {
   today.setDate(today.getDate() - 1);
 }
@@ -26,27 +25,44 @@ const LOADING_TIMEOUT_MS = 60000;
 function showLoading(timeoutMessage = null) {
   const container = document.getElementById('doctor-list');
   container.innerHTML = `
-    <div class="loading-spinner"></div>
-    <p style="text-align:center;">Loading...</p>
+    <div class="loader-wrapper" style="display:flex;justify-content:center;align-items:center;height:60vh;">
+      <!-- From Uiverse.io by Nawsome -->
+      <div class="loader">
+        <div>
+          <ul>
+            ${Array(7).fill(`
+              <li>
+                <svg fill="currentColor" viewBox="0 0 90 120">
+                  <path d="M90,0 L90,120 L11,120 C4.9,120 0,115.07 0,109 L0,11 C0,4.92 4.92,0 11,0 L90,0 Z 
+                  M71.5,81 L18.5,81 C17.12,81 16,82.12 16,83.5 C16,84.83 17.03,85.91 18.34,85.99 
+                  L18.5,86 L71.5,86 C72.88,86 74,84.88 74,83.5 C74,82.17 72.97,81.09 71.66,81.00 L71.5,81 Z 
+                  M71.5,57 L18.5,57 C17.12,57 16,58.12 16,59.5 C16,60.82 17.03,61.91 18.34,61.99 
+                  L18.5,62 L71.5,62 C72.88,62 74,60.88 74,59.5 C74,58.12 72.88,57 71.5,57 Z 
+                  M71.5,33 L18.5,33 C17.12,33 16,34.12 16,35.5 C16,36.82 17.03,37.91 18.34,37.99 
+                  L18.5,38 L71.5,38 C72.88,38 74,36.88 74,35.5 C74,34.12 72.88,33 71.5,33 Z"></path>
+                </svg>
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+        <span>Loading</span>
+      </div>
+    </div>
   `;
 
   if (timeoutMessage) {
     setTimeout(() => {
-      const stillLoading = container.innerHTML.includes('loading-spinner');
+      const stillLoading = container.querySelector('.loader');
       if (stillLoading) {
-        container.innerHTML = `
-          <p style="text-align:center;">⚠️ ${timeoutMessage}</p>
-        `;
+        container.innerHTML = `<p style="text-align:center;">⚠️ ${timeoutMessage}</p>`;
       }
     }, LOADING_TIMEOUT_MS);
   }
 }
 
-
 function getCachedData(key) {
   const item = localStorage.getItem(key);
   if (!item) return null;
-
   try {
     const parsed = JSON.parse(item);
     const age = Date.now() - parsed.timestamp;
@@ -74,19 +90,14 @@ function updateLastUpdatedTime() {
 async function fetchSheetData(endpoint) {
   try {
     const res = await fetch(`${BACKEND_URL}/${endpoint}`, { cache: "no-store" });
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`Failed to fetch ${endpoint}:`, res.status, text);
-      throw new Error(`Fetch error for ${endpoint}`);
-    }
+    if (!res.ok) throw new Error(`Fetch error for ${endpoint}`);
     const data = await res.json();
     return data.values || [];
   } catch (err) {
     console.error(`Error fetching ${endpoint}:`, err);
-    return null; // <-- so we can check in loadDashboard
+    return null;
   }
 }
-
 
 async function loadDashboard() {
   showLoading("Server is taking too long to respond. Showing last cached data (if available)...");
@@ -94,12 +105,9 @@ async function loadDashboard() {
   if (!container) return;
 
   const todayStr = formatTodayAsDDMMYYYY();
-
   const cached = getCachedData(todayStr);
   if (cached) {
     renderDashboard(cached.timetable, cached.contacts);
-  } else {
-    container.innerHTML = '<p>Loading...</p>';
   }
 
   try {
@@ -107,12 +115,12 @@ async function loadDashboard() {
       fetchSheetData('timetable'),
       fetchSheetData('contacts')
     ]);
-    
+
     if (!timetable || !contacts) {
-      console.error('One or both datasets failed to load');
       if (!cached) container.innerHTML = '<p>Unable to load data. Please try again later.</p>';
       return;
     }
+
     setCachedData(todayStr, { timetable, contacts });
     renderDashboard(timetable, contacts);
     updateLastUpdatedTime();
@@ -124,40 +132,39 @@ async function loadDashboard() {
 
 function renderDashboard(timetable, contacts) {
   const container = document.getElementById('doctor-list');
+  container.style.opacity = 0; // start fade
+
+  setTimeout(() => {
+    container.innerHTML = buildDashboardHTML(timetable, contacts);
+    container.style.transition = 'opacity 0.4s ease';
+    container.style.opacity = 1; // fade in
+  }, 100);
+}
+
+function buildDashboardHTML(timetable, contacts) {
   const todayStr = formatTodayAsDDMMYYYY();
   const headers = timetable[0].slice(1);
   const todayRow = timetable.find(row => row[0] === todayStr);
+  if (!todayRow) return `<p>No on-call schedule found for today (${todayStr}).</p>`;
 
-  if (!todayRow) {
-    container.innerHTML = `<p>No on-call schedule found for today (${todayStr}).</p>`;
-    return;
-  }
-
-  // New format: columns like "MEDICAL NAME", "MEDICAL PHONE", "SURGICAL NAME", "SURGICAL PHONE", etc.
-  const contactsMap = {}; // contactsMap[main][name] = phone
-
+  const contactsMap = {};
   if (contacts.length > 0) {
     const headerRow = contacts[0];
-
     for (let i = 0; i < headerRow.length; i += 2) {
       const nameHeader = headerRow[i];
       const phoneHeader = headerRow[i + 1];
-
       if (!nameHeader || !phoneHeader) continue;
 
       const deptMatch = nameHeader.match(/^(.+?)\s+NAME$/i);
       if (!deptMatch) continue;
 
-      const dept = deptMatch[1].trim().toUpperCase(); // e.g., MEDICAL
-
+      const dept = deptMatch[1].trim().toUpperCase();
       if (!contactsMap[dept]) contactsMap[dept] = {};
 
-      // Start from row 1 (after header), read name-phone pairs
       for (let j = 1; j < contacts.length; j++) {
         const row = contacts[j];
         const name = row[i]?.trim();
         const phone = row[i + 1]?.trim();
-
         if (name && phone) {
           contactsMap[dept][name] = phone;
         }
@@ -166,7 +173,6 @@ function renderDashboard(timetable, contacts) {
   }
 
   const grouped = {};
-
   headers.forEach((dept, i) => {
     const cell = todayRow[i + 1];
     if (!cell) return;
@@ -176,31 +182,27 @@ function renderDashboard(timetable, contacts) {
 
     const parts = dept.split(' ');
     const main = parts[0].toUpperCase();
-    const sub = dept.slice(main.length).trim();
-    const subkey = sub || 'General';
+    const sub = dept.slice(main.length).trim() || 'General';
 
     if (!grouped[main]) grouped[main] = {};
-    if (!grouped[main][subkey]) grouped[main][subkey] = [];
+    if (!grouped[main][sub]) grouped[main][sub] = [];
 
     doctors.forEach(name => {
       const phone = (contactsMap[main] && contactsMap[main][name]) || 'Unknown';
-      grouped[main][subkey].push({ name, phone });
+      grouped[main][sub].push({ name, phone });
     });
   });
 
   let html = '';
   Object.entries(grouped).forEach(([mainDept, subGroups]) => {
     html += `<div class="doctor-card"><h2 style="text-align:center;">${mainDept}</h2>`;
-
     Object.entries(subGroups).forEach(([subDept, doctors]) => {
       if (subDept !== 'General') {
         html += `<h3 style="margin-top: 12px; margin-bottom: 6px;">${subDept}</h3>`;
       }
-
       doctors.forEach(({ name, phone }) => {
         const tel = phone !== 'Unknown' ? `tel:${phone}` : '#';
         const wa = phone !== 'Unknown' ? `https://wa.me/6${phone.replace(/\D/g, '')}` : '#';
-
         html += `
           <div class="doctor-row">
             <div class="doctor-info">
@@ -208,8 +210,7 @@ function renderDashboard(timetable, contacts) {
               <span>${phone}</span>
             </div>
             <div class="contact-icons">
-              <a href="${tel}" title="Call ${name}" class="icon-link">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="#4CAF50" viewBox="0 0 24 24">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="#4CAF50" viewBox="0 0 24 24">
                   <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.21c1.2.48 2.5.74 3.83.74a1 1 0 011 1v3.5a1 1 0 01-1 1A17.91 17.91 0 013 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.33.26 2.63.74 3.83a1 1 0 01-.21 1.11l-2.41 2.41z"/>
                 </svg>
               </a>
@@ -223,15 +224,14 @@ function renderDashboard(timetable, contacts) {
         `;
       });
     });
-
     html += `</div>`;
   });
 
-  container.innerHTML = html || '<p>No doctors on-call today.</p>';
+  return html || '<p>No doctors on-call today.</p>';
 }
 
 document.addEventListener('DOMContentLoaded', loadDashboard);
- 
+
 // Listen for SW update message
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', event => {
@@ -256,10 +256,8 @@ function showUpdateToast() {
   toast.style.zIndex = '1000';
   toast.style.opacity = '0';
   toast.style.transition = 'opacity 0.5s ease';
-
   document.body.appendChild(toast);
   setTimeout(() => toast.style.opacity = '1', 50);
-
   setTimeout(() => {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 500);
