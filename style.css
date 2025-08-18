@@ -120,10 +120,10 @@ body {
 /* Mobile */
 @media (max-width: 600px) {
   .header-title {
-    font-size: 1.5rem;
+    font-size: 2rem;
   }
   #logo {
-    height: 70px;
+    height: 100px;
   }
 }
 
