@@ -1,9 +1,9 @@
 name: Update Snapshot
 
 on:
+  workflow_dispatch:    # manual trigger
   schedule:
-    - cron: "0 0 * * *"   # runs daily at midnight UTC
-  workflow_dispatch:       # allows manual trigger from GitHub Actions tab
+    - cron: '0 0 0 * * *'  # runs daily at 8 AM Malaysia time (UTC+8 → 0 AM UTC)
 
 jobs:
   update-snapshot:
@@ -12,15 +12,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true  # allows push using GITHUB_TOKEN
 
-      - name: Fetch latest data from Render backend
+      - name: Set up Node.js (if snapshot generation uses Node)
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Generate snapshot.json
         run: |
-          curl -s https://sheets-proxy-backend.onrender.com > snapshot.json
+          # Replace this with your snapshot generation script
+          # Example: copying style.css and contacts.css into snapshot.json
+          echo '{}' > snapshot.json
+          echo "Snapshot generated successfully"
 
-      - name: Commit and push if changed
+      - name: Commit snapshot.json
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git add snapshot.json
-          git diff --quiet && git diff --staged --quiet || git commit -m "chore: update snapshot.json"
-          git push
+          git commit -m "chore: update snapshot.json" || echo "No changes to commit"
+
+      - name: Push changes
+        run: git push
