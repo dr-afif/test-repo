@@ -1,4 +1,6 @@
 const BACKEND_URL = 'https://sheets-proxy-backend.onrender.com';
+const SNAPSHOT_URL = 'https://raw.githubusercontent.com/dr-afif/oncallrosterhsaas/main/snapshot.json'; 
+// replace with your repo path
 
 const now = new Date();
 const today = new Date(now);
@@ -99,8 +101,21 @@ async function fetchSheetData(endpoint) {
   }
 }
 
+// --- NEW: Load snapshot.json as fallback ---
+async function fetchSnapshotData() {
+  try {
+    const res = await fetch(SNAPSHOT_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("Snapshot not found");
+    return await res.json();
+  } catch (err) {
+    console.error("Error fetching snapshot.json:", err);
+    return null;
+  }
+}
+
 async function loadDashboard() {
-  showLoading("Server is taking too long to respond. Showing last cached data (if available)...");
+  showLoading("Loading snapshot first... then refreshing from server if available");
+
   const container = document.getElementById('doctor-list');
   if (!container) return;
 
@@ -110,25 +125,32 @@ async function loadDashboard() {
     renderDashboard(cached.timetable, cached.contacts);
   }
 
+  // 1. Try snapshot first (instant load)
+  const snapshot = await fetchSnapshotData();
+    if (snapshot) {
+    renderDashboard(snapshot.timetable, snapshot.contacts);
+    document.getElementById("data-source").textContent = "📂 Data Source: Snapshot (cached)";
+  }
+
+
+  // 2. Then try backend (refresh if successful)
   try {
     const [timetable, contacts] = await Promise.all([
       fetchSheetData('timetable'),
       fetchSheetData('contacts')
     ]);
 
-    if (!timetable || !contacts) {
-      if (!cached) container.innerHTML = '<p>Unable to load data. Please try again later.</p>';
-      return;
+    if (timetable && contacts) {
+      setCachedData(todayStr, { timetable, contacts });
+      renderDashboard(timetable, contacts);
+      updateLastUpdatedTime();
+      document.getElementById("data-source").textContent = "🌐 Data Source: Live Backend";
     }
-
-    setCachedData(todayStr, { timetable, contacts });
-    renderDashboard(timetable, contacts);
-    updateLastUpdatedTime();
   } catch (err) {
-    console.error(err);
-    if (!cached) container.innerHTML = '<p>Failed to load data. Please try again later.</p>';
+    console.error("Backend fetch failed", err);
   }
 }
+
 
 function renderDashboard(timetable, contacts) {
   const container = document.getElementById('doctor-list');
@@ -210,6 +232,7 @@ function buildDashboardHTML(timetable, contacts) {
               <span>${phone}</span>
             </div>
             <div class="contact-icons">
+              <a href="${tel}" title="Call ${name}" class="icon-link">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="#4CAF50" viewBox="0 0 24 24">
                   <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.21c1.2.48 2.5.74 3.83.74a1 1 0 011 1v3.5a1 1 0 01-1 1A17.91 17.91 0 013 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.33.26 2.63.74 3.83a1 1 0 01-.21 1.11l-2.41 2.41z"/>
                 </svg>
