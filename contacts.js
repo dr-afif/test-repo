@@ -176,7 +176,7 @@ function renderDepartments(contacts) {
       item.className = 'contact-item';
 
       const tel = `tel:${c.phone.replace(/\s+/g, '')}`;
-      const wa = `https://wa.me/${c.phone.replace(/\D/g,'')}`;
+      const wa = `https://wa.me/6${c.phone.replace(/\D/g,'')}`;
 
       item.innerHTML = `
         <span class="contact-name">${c.name}</span>
