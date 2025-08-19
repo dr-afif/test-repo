@@ -1,30 +1,35 @@
-const BACKEND_URL = 'https://sheets-proxy-backend.onrender.com';
+// -----------------------------
+// contacts.js
+// -----------------------------
+
+// Render backend URL for contacts sheet
+const SHEET_URL = 'https://sheets-proxy-backend.onrender.com/contacts';
 const SNAPSHOT_URL = 'https://raw.githubusercontent.com/dr-afif/oncallrosterhsaas/main/contacts-snapshot.json';
 const LOADING_TIMEOUT_MS = 60000;
 
-// Show animated loader
+// -----------------------------
+// Loading animation
+// -----------------------------
 function showLoading(timeoutMessage = null) {
   const container = document.getElementById('departments');
   container.innerHTML = `
-    <div class="loader-wrapper" style="display:flex;justify-content:center;align-items:center;height:60vh;">
+    <div class="loader-wrapper" style="display:flex;justify-content:center;align-items:center;height:50vh;">
       <div class="loader">
-        <div>
-          <ul>
-            ${Array(7).fill(`
-              <li>
-                <svg fill="currentColor" viewBox="0 0 90 120">
-                  <path d="M90,0 L90,120 L11,120 C4.9,120 0,115.07 0,109 L0,11 C0,4.92 4.92,0 11,0 L90,0 Z 
+        <ul>
+          ${Array(7).fill(`
+            <li>
+              <svg fill="currentColor" viewBox="0 0 90 120">
+                <path d="M90,0 L90,120 L11,120 C4.9,120 0,115.07 0,109 L0,11 C0,4.92 4.92,0 11,0 L90,0 Z 
                   M71.5,81 L18.5,81 C17.12,81 16,82.12 16,83.5 C16,84.83 17.03,85.91 18.34,85.99 
                   L18.5,86 L71.5,86 C72.88,86 74,84.88 74,83.5 C74,82.17 72.97,81.09 71.66,81.00 L71.5,81 Z 
                   M71.5,57 L18.5,57 C17.12,57 16,58.12 16,59.5 C16,60.82 17.03,61.91 18.34,61.99 
                   L18.5,62 L71.5,62 C72.88,62 74,60.88 74,59.5 C74,58.12 72.88,57 71.5,57 Z 
                   M71.5,33 L18.5,33 C17.12,33 16,34.12 16,35.5 C16,36.82 17.03,37.91 18.34,37.99 
-                  L18.5,38 L71.5,38 C72.88,38 74,36.88 74,35.5 C74,34.12 72.88,33 71.5,33 Z"></path>
-                </svg>
-              </li>
-            `).join('')}
-          </ul>
-        </div>
+                  L18.5,38 L71.5,38 C72.88,38 74,36.88 74,35.5 C74,34.12 72.88,33 71.5,33 Z"/>
+              </svg>
+            </li>
+          `).join('')}
+        </ul>
         <span>Loading...</span>
       </div>
     </div>
@@ -32,20 +37,24 @@ function showLoading(timeoutMessage = null) {
 
   if (timeoutMessage) {
     setTimeout(() => {
-      if (container.querySelector('.loader')) {
+      const stillLoading = container.querySelector('.loader');
+      if (stillLoading) {
         container.innerHTML = `<p style="text-align:center;">⚠️ ${timeoutMessage}</p>`;
       }
     }, LOADING_TIMEOUT_MS);
   }
 }
 
-// LocalStorage helpers
+// -----------------------------
+// LocalStorage caching
+// -----------------------------
 function getCachedData(key) {
   const item = localStorage.getItem(key);
   if (!item) return null;
   try {
     const parsed = JSON.parse(item);
-    if (Date.now() - parsed.timestamp > 86400000) {
+    const age = Date.now() - parsed.timestamp;
+    if (age > 86400000) { // 24h
       localStorage.removeItem(key);
       return null;
     }
@@ -60,26 +69,37 @@ function setCachedData(key, data) {
   localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
 }
 
-// Fetch snapshot.json
-async function fetchSnapshotData() {
-  try {
-    const res = await fetch(SNAPSHOT_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error("Snapshot not found");
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-// Fetch live contacts from backend
+// -----------------------------
+// Fetch contacts from backend / snapshot
+// -----------------------------
 async function fetchContacts() {
+  showLoading("Loading contacts…"); // show loader immediately
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  let contactsData = getCachedData(todayStr);
+
+  // 1. Snapshot fallback
+  if (!contactsData) {
+    try {
+      const res = await fetch(SNAPSHOT_URL, { cache: "no-store" });
+      if (res.ok) contactsData = await res.json();
+    } catch (err) {
+      console.error("Snapshot fetch failed:", err);
+    }
+  }
+
+  if (contactsData) renderDepartments(contactsData);
+
+  // 2. Backend fetch (refresh)
   try {
-    const res = await fetch(`${BACKEND_URL}/contacts`, { cache: 'no-store' });
+    const res = await fetch(SHEET_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("Backend fetch failed");
     const data = await res.json();
     const values = data.values;
-    if (!values || values.length < 2) return [];
+    if (!values || values.length < 2) throw new Error("No data");
 
-    const headers = values[0]; 
+    // First row = headers
+    const headers = values[0];
     const contacts = [];
 
     for (let i = 1; i < values.length; i++) {
@@ -87,26 +107,38 @@ async function fetchContacts() {
       for (let j = 0; j < headers.length; j += 2) {
         const name = row[j];
         const phone = row[j + 1];
-        const department = headers[j]?.split(' ')[0];
-        if (name && phone && department) contacts.push({ name, phone, department });
+        const deptHeader = headers[j];
+        if (name && phone) {
+          const department = deptHeader.split(' ')[0];
+          contacts.push({ name, phone, department });
+        }
       }
     }
-    return contacts;
-  } catch {
-    return [];
+
+    setCachedData(todayStr, contacts);
+    renderDepartments(contacts);
+
+  } catch (err) {
+    console.error('Error fetching contacts:', err);
+    if (!contactsData) {
+      document.getElementById('departments').innerHTML = '<p>No contacts available.</p>';
+    }
   }
 }
 
-// Render contacts grouped by department
+// -----------------------------
+// Render departments and contacts
+// -----------------------------
 function renderDepartments(contacts) {
   const container = document.getElementById('departments');
-  container.innerHTML = '';
+  container.innerHTML = ''; // clear loader
 
-  if (!contacts.length) {
+  if (!contacts || contacts.length === 0) {
     container.innerHTML = '<p>No contacts available.</p>';
     return;
   }
 
+  // Group by department
   const deptMap = {};
   contacts.forEach(c => {
     if (!deptMap[c.department]) deptMap[c.department] = [];
@@ -124,9 +156,12 @@ function renderDepartments(contacts) {
 
     const list = document.createElement('div');
     list.className = 'contacts-list';
+    list.style.display = 'none';
+
     deptMap[dept].forEach(c => {
       const item = document.createElement('div');
       item.className = 'contact-item';
+
       const tel = `tel:${c.phone.replace(/\s+/g, '')}`;
       const wa = `https://wa.me/${c.phone.replace(/\D/g,'')}`;
 
@@ -147,36 +182,19 @@ function renderDepartments(contacts) {
       `;
       list.appendChild(item);
     });
-    deptDiv.appendChild(list);
 
     header.addEventListener('click', () => {
-      list.style.display = (window.getComputedStyle(list).display === 'none') ? 'block' : 'none';
+      list.style.display = list.style.display === 'none' ? 'block' : 'none';
     });
 
+    deptDiv.appendChild(list);
     container.appendChild(deptDiv);
   }
 }
 
-// Initialize contacts page
-async function loadContacts() {
-  showLoading("Loading snapshot first... then refreshing from server if available");
-
-  const todayStr = new Date().toLocaleDateString('en-MY');
-  const cached = getCachedData(todayStr);
-  if (cached) renderDepartments(cached);
-
-  const snapshot = await fetchSnapshotData();
-  if (snapshot) {
-    renderDepartments(snapshot);
-    document.getElementById("data-source").textContent = "📂 Data Source: Snapshot (cached)";
-  }
-
-  const liveData = await fetchContacts();
-  if (liveData.length > 0) {
-    setCachedData(todayStr, liveData);
-    renderDepartments(liveData);
-    document.getElementById("data-source").textContent = "🌐 Data Source: Live Backend";
-  }
-}
-
-document.addEventListener('DOMContentLoaded', loadContacts);
+// -----------------------------
+// Initialize
+// -----------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  fetchContacts();
+});

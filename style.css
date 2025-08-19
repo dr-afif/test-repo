@@ -103,6 +103,7 @@ html, body {
   color: #666;
   border-top: 1px solid #ddd;
   margin-top: auto;
+  margin-bottom: 10px;
 }
 
 /* Loading spinner */
@@ -331,7 +332,7 @@ html, body {
 /* Bottom nav */
 .bottom-nav {
   position: fixed;
-  bottom: 16px;
+  bottom: 16px; /* distance from bottom of viewport */
   left: 50%;
   transform: translateX(-50%);
   background: white;
@@ -345,6 +346,11 @@ html, body {
   box-shadow: 0 4px 10px rgba(0,0,0,0.15);
   z-index: 50;
   transition: all 0.2s ease;
+}
+
+/* Push page content above navbar */
+body, #main-content {
+  padding-bottom: 80px; /* navbar height (60px) + bottom offset (16px) + extra 16px */
 }
 
 .bottom-nav button {
@@ -397,7 +403,12 @@ html, body {
   .bottom-nav button span {
     font-size: 9px;
   }
+
+  body, #main-content {
+    padding-bottom: 82px; /* adjust for smaller navbar */
+  }
 }
+
 
 
 /*loading dots blinking*/
