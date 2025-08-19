@@ -255,6 +255,23 @@ function buildDashboardHTML(timetable, contacts) {
 
 document.addEventListener('DOMContentLoaded', loadDashboard);
 
+// -----------------------------
+// Background prefetch contacts
+// -----------------------------
+async function preloadContacts() {
+  try {
+    const res = await fetch('https://sheets-proxy-backend.onrender.com/contacts', { cache: "no-store" });
+    if (!res.ok) throw new Error('Failed to fetch contacts for preloading');
+    const data = await res.json();
+    window.contactsCache = data; // store for later use
+    console.log('Contacts preloaded in background');
+  } catch (err) {
+    console.warn('Background contacts preload failed:', err);
+  }
+}
+
+preloadContacts(); // start preloading silently
+
 // Listen for SW update message
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', event => {
@@ -263,6 +280,28 @@ if ('serviceWorker' in navigator) {
     }
   });
 }
+
+// -----------------------------
+// Background preload contacts for SPA feel
+// -----------------------------
+async function preloadContacts() {
+  try {
+    const res = await fetch('https://sheets-proxy-backend.onrender.com/contacts', { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to preload contacts');
+    const data = await res.json();
+    window.contactsCache = data; // store globally for contacts page
+    console.log('Contacts preloaded in background');
+  } catch (err) {
+    console.error('Background preload failed:', err);
+  }
+}
+
+// Call preload after dashboard loads
+document.addEventListener('DOMContentLoaded', () => {
+  loadDashboard();
+  preloadContacts();
+});
+
 
 function showUpdateToast() {
   const toast = document.createElement('div');

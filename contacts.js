@@ -15,22 +15,24 @@ function showLoading(timeoutMessage = null) {
   container.innerHTML = `
     <div class="loader-wrapper" style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:50vh;">
       <div class="loader">
-        <ul style="display:flex;gap:4px;">
-          ${Array(7).fill(`
-            <li style="list-style:none;color:#1976d2;">
-              <svg fill="currentColor" viewBox="0 0 90 120">
-                <path d="M90,0 L90,120 L11,120 C4.9,120 0,115.07 0,109 L0,11 C0,4.92 4.92,0 11,0 L90,0 Z 
+        <div>
+          <ul>
+            ${Array(7).fill(`
+              <li>
+                <svg fill="currentColor" viewBox="0 0 90 120">
+                  <path d="M90,0 L90,120 L11,120 C4.9,120 0,115.07 0,109 L0,11 C0,4.92 4.92,0 11,0 L90,0 Z 
                   M71.5,81 L18.5,81 C17.12,81 16,82.12 16,83.5 C16,84.83 17.03,85.91 18.34,85.99 
                   L18.5,86 L71.5,86 C72.88,86 74,84.88 74,83.5 C74,82.17 72.97,81.09 71.66,81.00 L71.5,81 Z 
                   M71.5,57 L18.5,57 C17.12,57 16,58.12 16,59.5 C16,60.82 17.03,61.91 18.34,61.99 
                   L18.5,62 L71.5,62 C72.88,62 74,60.88 74,59.5 C74,58.12 72.88,57 71.5,57 Z 
                   M71.5,33 L18.5,33 C17.12,33 16,34.12 16,35.5 C16,36.82 17.03,37.91 18.34,37.99 
-                  L18.5,38 L71.5,38 C72.88,38 74,36.88 74,35.5 C74,34.12 72.88,33 71.5,33 Z"/>
-              </svg>
-            </li>
-          `).join('')}
-        </ul>
-        <span style="margin-top:8px;">Loading...</span>
+                  L18.5,38 L71.5,38 C72.88,38 74,36.88 74,35.5 C74,34.12 72.88,33 71.5,33 Z"></path>
+                </svg>
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+        <span>Loading</span>
       </div>
     </div>
   `;
@@ -78,7 +80,15 @@ async function fetchContacts() {
   const todayStr = new Date().toISOString().split('T')[0];
   let contactsData = getCachedData(todayStr);
 
-  // 1. Snapshot fallback
+  // 0. Check if window.contactsCache exists (preloaded from dashboard)
+  if (window.contactsCache && window.contactsCache.values) {
+    contactsData = transformSheetData(window.contactsCache.values);
+    setCachedData(todayStr, contactsData);
+    renderDepartments(contactsData);
+    console.log("Contacts loaded from background cache");
+  }
+
+  // 1. Snapshot fallback (only if no data yet)
   if (!contactsData) {
     try {
       const res = await fetch(SNAPSHOT_URL, { cache: "no-store" });
@@ -86,38 +96,19 @@ async function fetchContacts() {
     } catch (err) {
       console.error("Snapshot fetch failed:", err);
     }
+    if (contactsData) renderDepartments(contactsData);
   }
-
-  if (contactsData) renderDepartments(contactsData);
 
   // 2. Backend fetch (refresh)
   try {
     const res = await fetch(SHEET_URL, { cache: "no-store" });
     if (!res.ok) throw new Error("Backend fetch failed");
     const data = await res.json();
-    const values = data.values;
-    if (!values || values.length < 2) throw new Error("No data");
-
-    // First row = headers
-    const headers = values[0];
-    const contacts = [];
-
-    for (let i = 1; i < values.length; i++) {
-      const row = values[i];
-      for (let j = 0; j < headers.length; j += 2) {
-        const name = row[j];
-        const phone = row[j + 1];
-        const deptHeader = headers[j];
-        if (name && phone) {
-          const department = deptHeader.split(' ')[0];
-          contacts.push({ name, phone, department });
-        }
-      }
-    }
-
+    if (!data.values || data.values.length < 2) throw new Error("No data");
+    
+    const contacts = transformSheetData(data.values);
     setCachedData(todayStr, contacts);
     renderDepartments(contacts);
-
   } catch (err) {
     console.error('Error fetching contacts:', err);
     if (!contactsData) {
@@ -125,6 +116,28 @@ async function fetchContacts() {
     }
   }
 }
+
+// -----------------------------
+// Helper to transform sheet values into contact objects
+// -----------------------------
+function transformSheetData(values) {
+  const headers = values[0];
+  const contacts = [];
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    for (let j = 0; j < headers.length; j += 2) {
+      const name = row[j];
+      const phone = row[j + 1];
+      const deptHeader = headers[j];
+      if (name && phone) {
+        const department = deptHeader.split(' ')[0];
+        contacts.push({ name, phone, department });
+      }
+    }
+  }
+  return contacts;
+}
+
 
 // -----------------------------
 // Render departments and contacts
