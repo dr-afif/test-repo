@@ -3,7 +3,7 @@ name: Update Snapshot
 on:
   workflow_dispatch:    # manual trigger
   schedule:
-    - cron: '0 0 0 * * *'  # runs daily at 8 AM Malaysia time (UTC+8 → 0 AM UTC)
+    - cron: '0 0 * * *'  # runs daily at 8 AM Malaysia time (UTC+8 → 0 AM UTC)
 
 jobs:
   update-snapshot:
