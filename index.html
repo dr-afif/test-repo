@@ -8,6 +8,7 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1976d2">
   <link rel="icon" href="data:,">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.3/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body>
 
@@ -39,11 +40,23 @@
     }
   </script>
 
-  <!-- Persistent bottom nav -->
-  <nav class="bottom-nav">
-    <a href="index.html" class="active">Home</a>
-    <a href="contacts.html">Contacts</a>
-  </nav>
+  <div class="bottom-nav">
+    <button class="active" onclick="location.href='index.html'">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+      </svg>
+      <span>Home</span>
+    </button>
+
+    <button onclick="location.href='contacts.html'">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+        <path d="M12 12c2.7 0 4.5-1.8 4.5-4.5S14.7 3 12 3 7.5 4.8 7.5 7.5 9.3 12 12 12zm0 2c-3 0-9 1.5-9 4.5V21h18v-2.5c0-3-6-4.5-9-4.5z"/>
+      </svg>
+      <span>Contacts</span>
+    </button>
+  </div>
+
+
 
 </body>
 </html>
