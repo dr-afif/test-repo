@@ -13,6 +13,8 @@ jobs:
       # 1️⃣ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          persist-credentials: false   # IMPORTANT: allows PAT to be used for push
 
       # 2️⃣ Set up Node.js
       - name: Set up Node.js
@@ -34,15 +36,15 @@ jobs:
             console.log('snapshot.json generated successfully');
           "
 
-      # 4️⃣ Commit changes if any
-      - name: Commit snapshot.json
+      # 4️⃣ Commit snapshot.json if changed
+      - name: Commit snapshot.json if changed
         run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add snapshot.json
-          git commit -m "chore: update snapshot.json" || echo "No changes to commit"
+          git diff-index --quiet HEAD || git commit -m "chore: update snapshot.json"
 
-      # 5️⃣ Push using PAT
+      # 5️⃣ Push changes using PAT
       - name: Push changes using PAT
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
