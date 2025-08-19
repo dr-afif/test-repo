@@ -19,7 +19,7 @@ jobs:
       # 2️⃣ Fetch contacts from Render backend
       - name: Fetch contacts
         env:
-          RENDER_URL: ${{ secrets.RENDER_BACKEND_URL }}
+          RENDER_URL: ${{ secrets.RENDER_URL }}
         run: |
           echo "Fetching contacts from Render backend..."
           curl -s "$RENDER_URL/contacts" > contacts.json
