@@ -13,11 +13,11 @@ const LOADING_TIMEOUT_MS = 60000;
 function showLoading(timeoutMessage = null) {
   const container = document.getElementById('departments');
   container.innerHTML = `
-    <div class="loader-wrapper" style="display:flex;justify-content:center;align-items:center;height:50vh;">
+    <div class="loader-wrapper" style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:50vh;">
       <div class="loader">
-        <ul>
+        <ul style="display:flex;gap:4px;">
           ${Array(7).fill(`
-            <li>
+            <li style="list-style:none;color:#1976d2;">
               <svg fill="currentColor" viewBox="0 0 90 120">
                 <path d="M90,0 L90,120 L11,120 C4.9,120 0,115.07 0,109 L0,11 C0,4.92 4.92,0 11,0 L90,0 Z 
                   M71.5,81 L18.5,81 C17.12,81 16,82.12 16,83.5 C16,84.83 17.03,85.91 18.34,85.99 
@@ -30,7 +30,7 @@ function showLoading(timeoutMessage = null) {
             </li>
           `).join('')}
         </ul>
-        <span>Loading...</span>
+        <span style="margin-top:8px;">Loading...</span>
       </div>
     </div>
   `;
