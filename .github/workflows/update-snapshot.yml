@@ -3,27 +3,38 @@ name: Update Snapshot
 on:
   workflow_dispatch:    # manual trigger
   schedule:
-    - cron: '0 0 * * *'  # runs daily at 8 AM Malaysia time (UTC+8 → 0 AM UTC)
+    - cron: '0 0 * * *'  # runs daily at 0:00 UTC → 8:00 Malaysia time
 
 jobs:
   update-snapshot:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Node.js (if needed)
+      # 2️⃣ Set up Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
+      # 3️⃣ Generate snapshot.json from your on-call roster files
       - name: Generate snapshot.json
         run: |
-          # Replace this with your actual snapshot generation logic
-          echo '{}' > snapshot.json
-          echo "Snapshot generated successfully"
+          node -e "
+            const fs = require('fs');
+            const snapshot = {
+              html: fs.readFileSync('index.html', 'utf-8'),
+              script: fs.readFileSync('script.js', 'utf-8'),
+              style: fs.readFileSync('style.css', 'utf-8')
+            };
+            fs.writeFileSync('snapshot.json', JSON.stringify(snapshot, null, 2));
+            console.log('snapshot.json generated successfully');
+          "
 
+      # 4️⃣ Commit changes if any
       - name: Commit snapshot.json
         run: |
           git config --local user.name "github-actions[bot]"
@@ -31,8 +42,9 @@ jobs:
           git add snapshot.json
           git commit -m "chore: update snapshot.json" || echo "No changes to commit"
 
+      # 5️⃣ Push using PAT
       - name: Push changes using PAT
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          git push https://x-access-token:${PAT_TOKEN}@github.com/dr-afif/test-repo.git HEAD:main
+          git push https://x-access-token:$PAT_TOKEN@github.com/dr-afif/test-repo.git HEAD:main
