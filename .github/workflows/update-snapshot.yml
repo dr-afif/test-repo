@@ -3,7 +3,7 @@ name: Update Snapshot
 on:
   workflow_dispatch:    # manual trigger
   schedule:
-    - cron: '0 0 * * *'  # runs daily at 8 AM Malaysia time (UTC+8 → 0 AM UTC)
+    - cron: '0 0 0 * * *'  # runs daily at 8 AM Malaysia time (UTC+8 → 0 AM UTC)
 
 jobs:
   update-snapshot:
@@ -12,18 +12,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-        with:
-          persist-credentials: true  # allows push using GITHUB_TOKEN
 
-      - name: Set up Node.js (if snapshot generation uses Node)
+      - name: Set up Node.js (if needed)
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
       - name: Generate snapshot.json
         run: |
-          # Replace this with your snapshot generation script
-          # Example: copying style.css and contacts.css into snapshot.json
+          # Replace this with your actual snapshot generation logic
           echo '{}' > snapshot.json
           echo "Snapshot generated successfully"
 
@@ -34,5 +31,8 @@ jobs:
           git add snapshot.json
           git commit -m "chore: update snapshot.json" || echo "No changes to commit"
 
-      - name: Push changes
-        run: git push
+      - name: Push changes using PAT
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          git push https://x-access-token:${PAT_TOKEN}@github.com/dr-afif/test-repo.git HEAD:main
