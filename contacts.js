@@ -205,5 +205,5 @@ function renderDepartments(contacts) {
 // Initialize
 // -----------------------------
 document.addEventListener('DOMContentLoaded', () => {
-  fetchContacts();
+  loadContacts();
 });
