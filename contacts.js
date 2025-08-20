@@ -80,42 +80,52 @@ async function fetchContacts() {
   const todayStr = new Date().toISOString().split('T')[0];
   let contactsData = getCachedData(todayStr);
 
-  // 0. Check if window.contactsCache exists (preloaded from dashboard)
+  // 0. Preloaded cache (from dashboard, if exists)
   if (window.contactsCache && window.contactsCache.values) {
     contactsData = transformSheetData(window.contactsCache.values);
     setCachedData(todayStr, contactsData);
     renderDepartments(contactsData);
-    console.log("Contacts loaded from background cache");
+    console.log("📌 Contacts loaded from background cache");
+    document.getElementById("data-source-b").textContent = "💾 Data Source: Local Cache";
   }
 
-  // 1. Snapshot fallback (only if no data yet)
+  // 1. Snapshot fallback → show instantly if nothing else yet
   if (!contactsData) {
     try {
       const res = await fetch(SNAPSHOT_URL, { cache: "no-store" });
-      if (res.ok) contactsData = await res.json();
+      if (res.ok) {
+        const snapshot = await res.json();
+        contactsData = snapshot;
+        renderDepartments(snapshot);
+        console.log("📌 Loaded contacts from snapshot.json");
+        document.getElementById("data-source-b").textContent = "📂 Data Source: Snapshot (GitHub)";
+      }
     } catch (err) {
-      console.error("Snapshot fetch failed:", err);
+      console.warn("⚠️ Snapshot fetch failed:", err);
     }
-    if (contactsData) renderDepartments(contactsData);
   }
 
-  // 2. Backend fetch (refresh)
+  // 2. Always try backend in background → replace snapshot if newer
   try {
     const res = await fetch(SHEET_URL, { cache: "no-store" });
     if (!res.ok) throw new Error("Backend fetch failed");
     const data = await res.json();
     if (!data.values || data.values.length < 2) throw new Error("No data");
-    
-    const contacts = transformSheetData(data.values);
-    setCachedData(todayStr, contacts);
-    renderDepartments(contacts);
+
+    const liveContacts = transformSheetData(data.values);
+    setCachedData(todayStr, liveContacts);
+    renderDepartments(liveContacts);
+    console.log("✅ Updated contacts from live backend");
+    document.getElementById("data-source-b").textContent = "🌐 Data Source: Live Backend";
   } catch (err) {
-    console.error('Error fetching contacts:', err);
+    console.error("❌ Error fetching live contacts:", err);
     if (!contactsData) {
-      document.getElementById('departments').innerHTML = '<p>No contacts available.</p>';
+      document.getElementById("departments").innerHTML =
+        "<p>No contacts available.</p>";
     }
   }
 }
+
 
 // -----------------------------
 // Helper to transform sheet values into contact objects

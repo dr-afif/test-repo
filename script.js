@@ -123,15 +123,15 @@ async function loadDashboard() {
   const cached = getCachedData(todayStr);
   if (cached) {
     renderDashboard(cached.timetable, cached.contacts);
+    document.getElementById("data-source").textContent = "💾 Data Source: Local Cache";
   }
 
-  // 1. Try snapshot first (instant load)
+  // 1. Try snapshot first (fast load if available)
   const snapshot = await fetchSnapshotData();
-    if (snapshot) {
+  if (snapshot && snapshot.timetable && snapshot.contacts) {
     renderDashboard(snapshot.timetable, snapshot.contacts);
-    document.getElementById("data-source").textContent = "📂 Data Source: Snapshot (cached)";
+    document.getElementById("data-source").textContent = "📂 Data Source: Snapshot (GitHub)";
   }
-
 
   // 2. Then try backend (refresh if successful)
   try {
@@ -145,11 +145,15 @@ async function loadDashboard() {
       renderDashboard(timetable, contacts);
       updateLastUpdatedTime();
       document.getElementById("data-source").textContent = "🌐 Data Source: Live Backend";
+    } else {
+      console.warn("Backend fetch failed, keeping snapshot/cache.");
     }
   } catch (err) {
-    console.error("Backend fetch failed", err);
+    console.error("Backend fetch error:", err);
+    // fallback already shown (snapshot or cache)
   }
 }
+
 
 
 function renderDashboard(timetable, contacts) {
