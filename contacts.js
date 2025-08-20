@@ -74,55 +74,41 @@ function setCachedData(key, data) {
 // -----------------------------
 // Fetch contacts from backend / snapshot
 // -----------------------------
-async function fetchContacts() {
-  showLoading("Loading contacts…"); // show loader immediately
+async function loadContacts() {
+  showLoading("Loading contacts...");
+  let contacts = null;
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  let contactsData = getCachedData(todayStr);
-
-  // 0. Preloaded cache (from dashboard, if exists)
-  if (window.contactsCache && window.contactsCache.values) {
-    contactsData = transformSheetData(window.contactsCache.values);
-    setCachedData(todayStr, contactsData);
-    renderDepartments(contactsData);
-    console.log("📌 Contacts loaded from background cache");
-    document.getElementById("data-source-b").textContent = "💾 Data Source: Local Cache";
+  // 1. Try cache first
+  const cached = getCachedContacts();
+  if (cached) {
+    contacts = cached;
+    renderContacts(contacts);
+    setDataSource("💾 Data Source: Local Cache");
+    hideLoading(); // stop loader once something is shown
   }
 
-  // 1. Snapshot fallback → show instantly if nothing else yet
-  if (!contactsData) {
-    try {
-      const res = await fetch(SNAPSHOT_URL, { cache: "no-store" });
-      if (res.ok) {
-        const snapshot = await res.json();
-        contactsData = snapshot;
-        renderDepartments(snapshot);
-        console.log("📌 Loaded contacts from snapshot.json");
-        document.getElementById("data-source-b").textContent = "📂 Data Source: Snapshot (GitHub)";
-      }
-    } catch (err) {
-      console.warn("⚠️ Snapshot fetch failed:", err);
+  // 2. Try snapshot if no cache
+  if (!contacts) {
+    contacts = await fetchSnapshot();
+    if (contacts) {
+      renderContacts(contacts);
+      setDataSource("📄 Data Source: Snapshot");
+      hideLoading();
     }
   }
 
-  // 2. Always try backend in background → replace snapshot if newer
-  try {
-    const res = await fetch(SHEET_URL, { cache: "no-store" });
-    if (!res.ok) throw new Error("Backend fetch failed");
-    const data = await res.json();
-    if (!data.values || data.values.length < 2) throw new Error("No data");
-
-    const liveContacts = transformSheetData(data.values);
-    setCachedData(todayStr, liveContacts);
-    renderDepartments(liveContacts);
-    console.log("✅ Updated contacts from live backend");
-    document.getElementById("data-source-b").textContent = "🌐 Data Source: Live Backend";
-  } catch (err) {
-    console.error("❌ Error fetching live contacts:", err);
-    if (!contactsData) {
-      document.getElementById("departments").innerHTML =
-        "<p>No contacts available.</p>";
+  // 3. Fetch backend in background (stale-while-revalidate)
+  fetchFromBackend().then(liveData => {
+    if (liveData) {
+      renderContacts(liveData);
+      setDataSource("🌐 Data Source: Live Backend");
+      setCachedContacts(liveData);
     }
+  });
+
+  // 4. If nothing at all loaded, show error
+  if (!contacts) {
+    showLoading("Failed to load contacts.");
   }
 }
 
