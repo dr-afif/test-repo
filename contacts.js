@@ -74,41 +74,52 @@ function setCachedData(key, data) {
 // -----------------------------
 // Fetch contacts from backend / snapshot
 // -----------------------------
-async function loadContacts() {
-  showLoading("Loading contacts...");
-  let contacts = null;
+async function fetchContacts() {
+  const contactsList = document.getElementById('contactsList');
+  contactsList.innerHTML = '<p>Loading contacts...</p>';
 
-  // 1. Try cache first
-  const cached = getCachedContacts();
-  if (cached) {
-    contacts = cached;
-    renderContacts(contacts);
-    setDataSource("💾 Data Source: Local Cache");
-    hideLoading(); // stop loader once something is shown
+  // 1. Try snapshot first
+  try {
+    const snapshotRes = await fetch(SNAPSHOT_URL);
+    if (snapshotRes.ok) {
+      const snapshotData = await snapshotRes.json();
+      if (snapshotData && snapshotData.contacts) {
+        renderDepartments(snapshotData.contacts);
+        document.getElementById('lastUpdated').innerText = `Last updated (snapshot)`;
+      }
+    }
+  } catch (e) {
+    console.warn("No snapshot available, waiting for live data...");
   }
 
-  // 2. Try snapshot if no cache
-  if (!contacts) {
-    contacts = await fetchSnapshot();
-    if (contacts) {
-      renderContacts(contacts);
-      setDataSource("📄 Data Source: Snapshot");
-      hideLoading();
-    }
-  }
+  // 2. Fetch live data in background
+  try {
+    const res = await fetch(SHEET_URL);
+    if (!res.ok) throw new Error("Network response was not ok");
+    const data = await res.json();
 
-  // 3. Fetch backend in background (stale-while-revalidate)
-  fetchFromBackend().then(liveData => {
-    if (liveData) {
-      renderContacts(liveData);
-      setDataSource("🌐 Data Source: Live Backend");
-      setCachedContacts(liveData);
-    }
-  });
+    if (data && data.contacts) {
+      renderDepartments(data.contacts);
+      document.getElementById('lastUpdated').innerText = `Last updated: ${new Date().toLocaleString()}`;
 
-  // 4. If nothing at all loaded, show error
-  if (!contacts) {
-    showLoading("Failed to load contacts.");
+      // Cache for later use
+      localStorage.setItem('contactsData', JSON.stringify({
+        timestamp: Date.now(),
+        contacts: data.contacts
+      }));
+    }
+  } catch (error) {
+    console.error('Error fetching contacts:', error);
+
+    // 3. Use cached copy if live fails
+    const cached = localStorage.getItem('contactsData');
+    if (cached) {
+      const cachedData = JSON.parse(cached);
+      renderDepartments(cachedData.contacts);
+      document.getElementById('lastUpdated').innerText = `Last updated (cached): ${new Date(cachedData.timestamp).toLocaleString()}`;
+    } else {
+      contactsList.innerHTML = '<p>Failed to load contacts.</p>';
+    }
   }
 }
 
@@ -205,5 +216,5 @@ function renderDepartments(contacts) {
 // Initialize
 // -----------------------------
 document.addEventListener('DOMContentLoaded', () => {
-  loadContacts();
+  fetchContacts();
 });
