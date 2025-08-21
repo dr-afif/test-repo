@@ -1,5 +1,6 @@
 const BACKEND_URL = 'https://sheets-proxy-backend.onrender.com';
-const SNAPSHOT_URL = 'https://raw.githubusercontent.com/dr-afif/oncallrosterhsaas/main/snapshot.json'; 
+const SNAPSHOT_URL = 'https://raw.githubusercontent.com/dr-afif/hsaas-oncallroster/main/snapshot.json';
+ 
 // replace with your repo path
 
 const now = new Date();

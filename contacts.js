@@ -4,7 +4,8 @@
 
 // Render backend URL for contacts sheet
 const SHEET_URL = 'https://sheets-proxy-backend.onrender.com/contacts';
-const SNAPSHOT_URL = 'https://raw.githubusercontent.com/dr-afif/oncallrosterhsaas/main/contacts-snapshot.json';
+const SNAPSHOT_URL = 'https://raw.githubusercontent.com/dr-afif/hsaas-oncallroster/main/contacts-snapshot.json';
+
 const LOADING_TIMEOUT_MS = 60000;
 
 // -----------------------------
@@ -60,7 +61,7 @@ function getCachedData(key) {
       localStorage.removeItem(key);
       return null;
     }
-    return parsed.data;
+    return parsed; // keep { data, timestamp }
   } catch {
     localStorage.removeItem(key);
     return null;
@@ -74,52 +75,49 @@ function setCachedData(key, data) {
 // -----------------------------
 // Fetch contacts from backend / snapshot
 // -----------------------------
+// -----------------------------
+// Fetch contacts from backend / snapshot
+// -----------------------------
 async function fetchContacts() {
-  const contactsList = document.getElementById('contactsList');
-  contactsList.innerHTML = '<p>Loading contacts...</p>';
+  showLoading("Still loading contacts... please check your connection.");
 
-  // 1. Try snapshot first
+  // 1. Cached data first
+  const cached = getCachedData('contactsData');
+if (cached) {
+  renderDepartments(cached.data);
+  document.getElementById('lastUpdated').innerText =
+    `Last updated (cached): ${new Date(cached.timestamp).toLocaleString()}`;
+}
+
+  // 2. Snapshot fallback
   try {
     const snapshotRes = await fetch(SNAPSHOT_URL);
     if (snapshotRes.ok) {
       const snapshotData = await snapshotRes.json();
-      if (snapshotData && snapshotData.contacts) {
-        renderDepartments(snapshotData.contacts);
+      const contacts = snapshotData.contacts || snapshotData;
+      if (contacts && contacts.length > 0) {
+        renderDepartments(contacts);
         document.getElementById('lastUpdated').innerText = `Last updated (snapshot)`;
       }
     }
   } catch (e) {
-    console.warn("No snapshot available, waiting for live data...");
+    console.warn("No snapshot available", e);
   }
 
-  // 2. Fetch live data in background
+  // 3. Live backend fetch
   try {
     const res = await fetch(SHEET_URL);
     if (!res.ok) throw new Error("Network response was not ok");
     const data = await res.json();
-
-    if (data && data.contacts) {
-      renderDepartments(data.contacts);
-      document.getElementById('lastUpdated').innerText = `Last updated: ${new Date().toLocaleString()}`;
-
-      // Cache for later use
-      localStorage.setItem('contactsData', JSON.stringify({
-        timestamp: Date.now(),
-        contacts: data.contacts
-      }));
+    const contacts = data.contacts || data;
+    if (contacts && contacts.length > 0) {
+      renderDepartments(contacts);
+      document.getElementById('lastUpdated').innerText =
+        `Last updated: ${new Date().toLocaleString()}`;
+      setCachedData('contactsData', contacts);
     }
   } catch (error) {
     console.error('Error fetching contacts:', error);
-
-    // 3. Use cached copy if live fails
-    const cached = localStorage.getItem('contactsData');
-    if (cached) {
-      const cachedData = JSON.parse(cached);
-      renderDepartments(cachedData.contacts);
-      document.getElementById('lastUpdated').innerText = `Last updated (cached): ${new Date(cachedData.timestamp).toLocaleString()}`;
-    } else {
-      contactsList.innerHTML = '<p>Failed to load contacts.</p>';
-    }
   }
 }
 
@@ -144,7 +142,6 @@ function transformSheetData(values) {
   }
   return contacts;
 }
-
 
 // -----------------------------
 // Render departments and contacts
