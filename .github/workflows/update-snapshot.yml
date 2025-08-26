@@ -44,6 +44,10 @@ jobs:
           git add snapshot.json
           git diff-index --quiet HEAD || git commit -m "chore: update snapshot.json"
 
+      # 4️⃣.1 Pull latest changes from remote before pushing
+      - name: Pull latest changes
+        run: git pull origin main --rebase
+
       # 5️⃣ Push changes using PAT (auto-detect branch)
       - name: Push changes using PAT
         env:
