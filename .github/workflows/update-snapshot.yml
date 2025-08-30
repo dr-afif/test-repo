@@ -35,11 +35,11 @@ jobs:
           MAX_RETRIES=5
           RETRY_DELAY=30
           BASE_URL="https://sheets-proxy-backend.onrender.com"
-          TIMESTAMP=$(date +"%d-%m-%Y")  # Changed to DD-MM-YYYY format
+          TIMESTAMP=$(date +"%d-%m-%Y")  # DD-MM-YYYY format
 
           echo "🔄 Fetching raw data for snapshot..."
 
-          # Function to fetch with retries
+          # Function to fetch with retries that returns valid JSON or empty object
           fetch_with_retry() {
             local endpoint=$1
             for i in $(seq 1 $MAX_RETRIES); do
@@ -56,12 +56,14 @@ jobs:
                 sleep $RETRY_DELAY
               fi
             done
+            # Return empty JSON object if all retries fail
+            echo '{}'
             return 1
           }
 
           # Fetch both endpoints with retry logic
-          TIMETABLE_DATA=$(fetch_with_retry "timetable") || echo '{}'
-          CONTACTS_DATA=$(fetch_with_retry "contacts") || echo '{}'
+          TIMETABLE_DATA=$(fetch_with_retry "timetable")
+          CONTACTS_DATA=$(fetch_with_retry "contacts")
 
           # Combine into snapshot with timestamp
           jq -n --arg ts "$TIMESTAMP" \
