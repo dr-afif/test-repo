@@ -103,11 +103,18 @@ async function fetchSheetData(endpoint) {
 }
 
 // --- NEW: Load snapshot.json as fallback ---
+// --- Update your fetchSnapshotData function ---
 async function fetchSnapshotData() {
   try {
     const res = await fetch(SNAPSHOT_URL, { cache: "no-store" });
     if (!res.ok) throw new Error("Snapshot not found");
-    return await res.json();
+    const snapshot = await res.json();
+    
+    // Extract the raw data from the snapshot
+    return {
+      timetable: snapshot.timetable?.values || [],
+      contacts: snapshot.contacts?.values || []
+    };
   } catch (err) {
     console.error("Error fetching snapshot.json:", err);
     return null;
