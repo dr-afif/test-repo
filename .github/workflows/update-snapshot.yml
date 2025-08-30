@@ -39,53 +39,55 @@ jobs:
 
           echo "🔄 Fetching raw data for snapshot..."
 
-          # Initialize with empty JSON objects
-          TIMETABLE_DATA='{}'
-          CONTACTS_DATA='{}'
-
-          # Function to fetch with retries
-          fetch_with_retry() {
+          # Function to fetch with retries and save to file
+          fetch_with_retry_to_file() {
             local endpoint=$1
+            local output_file=$2
+            
             for i in $(seq 1 $MAX_RETRIES); do
               echo "Attempt $i for $endpoint..."
-              RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/$endpoint")
-              HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
-              HTTP_STATUS=$(echo "$RESPONSE" | tail -n 1)
               
-              if [[ "$HTTP_STATUS" == "200" ]] && echo "$HTTP_BODY" | jq -e . >/dev/null 2>&1; then
-                echo "$HTTP_BODY"
-                return 0
+              # Use timeout to prevent hanging requests
+              if curl -s -w "\n%{http_code}" "$BASE_URL/$endpoint" --max-time 60 > temp_response.txt; then
+                HTTP_BODY=$(head -n -1 temp_response.txt)
+                HTTP_STATUS=$(tail -n 1 temp_response.txt)
+                
+                if [[ "$HTTP_STATUS" == "200" ]] && echo "$HTTP_BODY" | jq -e . >/dev/null 2>&1; then
+                  echo "$HTTP_BODY" > "$output_file"
+                  echo "✅ Successfully fetched $endpoint"
+                  return 0
+                else
+                  echo "❌ Attempt $i failed for $endpoint (Status: $HTTP_STATUS)"
+                fi
               else
-                echo "❌ Attempt $i failed for $endpoint (Status: $HTTP_STATUS)"
-                sleep $RETRY_DELAY
+                echo "❌ Attempt $i failed for $endpoint (Curl error)"
               fi
+              
+              sleep $RETRY_DELAY
             done
+            
+            # If all retries fail, create an empty JSON file
+            echo '{}' > "$output_file"
+            echo "⚠️  All attempts failed for $endpoint, using empty object"
             return 1
           }
 
-          # Fetch timetable with retries
-          if TIMETABLE_RESPONSE=$(fetch_with_retry "timetable"); then
-            TIMETABLE_DATA="$TIMETABLE_RESPONSE"
-          else
-            echo "⚠️  All timetable attempts failed, using empty object"
-          fi
-
-          # Fetch contacts with retries
-          if CONTACTS_RESPONSE=$(fetch_with_retry "contacts"); then
-            CONTACTS_DATA="$CONTACTS_RESPONSE"
-          else
-            echo "⚠️  All contacts attempts failed, using empty object"
-          fi
+          # Fetch data to temporary files
+          fetch_with_retry_to_file "timetable" "timetable.json"
+          fetch_with_retry_to_file "contacts" "contacts.json"
 
           # Combine into snapshot with timestamp
           jq -n --arg ts "$TIMESTAMP" \
-            --argjson timetable "$TIMETABLE_DATA" \
-            --argjson contacts "$CONTACTS_DATA" \
-            '{last_updated: $ts, timetable: $timetable, contacts: $contacts}' > snapshot.json
+            --slurpfile timetable timetable.json \
+            --slurpfile contacts contacts.json \
+            '{last_updated: $ts, timetable: $timetable[0], contacts: $contacts[0]}' > snapshot.json
 
           echo "✅ Raw data snapshot created with timestamp: $TIMESTAMP"
           echo "📊 Snapshot content:"
           cat snapshot.json | jq .
+
+          # Clean up temporary files
+          rm -f temp_response.txt timetable.json contacts.json
 
       # 5️⃣ Commit & push if there are changes
       - name: Commit and push if changed
