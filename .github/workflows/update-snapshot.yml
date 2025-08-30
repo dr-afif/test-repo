@@ -13,41 +13,72 @@ jobs:
       # 1️⃣ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
 
       # 2️⃣ Install jq
       - name: Install jq
         run: sudo apt-get install -y jq
 
-      # 3️⃣ Save today's roster as snapshot.json with timestamp
-      - name: Save snapshot.json with timestamp
-        run: |
-          TODAY_DATA=$(curl -s https://sheets-proxy-backend.onrender.com/api/today || echo '{}')
-          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          echo "$TODAY_DATA" | jq --arg ts "$TIMESTAMP" '. + {last_updated: $ts}' > snapshot.json
-
-      # 4️⃣ Commit & push if there are changes
-      - name: Commit and push if changed
+      # 3️⃣ Pull the latest changes FIRST to avoid conflicts
+      - name: Pull latest changes from default branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add snapshot.json
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update today snapshot [skip ci]"
+          git pull --rebase
 
-      # 4️⃣.1 Pull latest changes from remote before pushing
-      - name: Pull latest changes
-        run: git pull origin main --rebase --autostash origin main
-
-      # 5️⃣ Push changes using PAT (auto-detect branch)
-      - name: Push changes using PAT
-        env:
-          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+      # 4️⃣ Save raw data snapshot with retry logic for both endpoints
+      - name: Save raw data snapshot
         run: |
-          # Detect default branch
-          DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
-          echo "Default branch is $DEFAULT_BRANCH"
+          # Configuration
+          MAX_RETRIES=5
+          RETRY_DELAY=30
+          BASE_URL="https://sheets-proxy-backend.onrender.com"
+          TIMESTAMP=$(date +"%d-%m-%Y")  # Changed to DD-MM-YYYY format
 
-          # Set remote URL with PAT
-          git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/${{ github.repository }}
+          echo "🔄 Fetching raw data for snapshot..."
 
-          # Push to detected branch
-          git push origin HEAD:$DEFAULT_BRANCH
+          # Function to fetch with retries
+          fetch_with_retry() {
+            local endpoint=$1
+            for i in $(seq 1 $MAX_RETRIES); do
+              echo "Attempt $i for $endpoint..."
+              RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/$endpoint")
+              HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
+              HTTP_STATUS=$(echo "$RESPONSE" | tail -n 1)
+              
+              if [[ "$HTTP_STATUS" == "200" ]] && echo "$HTTP_BODY" | jq -e . >/dev/null 2>&1; then
+                echo "$HTTP_BODY"
+                return 0
+              else
+                echo "❌ Attempt $i failed for $endpoint (Status: $HTTP_STATUS)"
+                sleep $RETRY_DELAY
+              fi
+            done
+            return 1
+          }
+
+          # Fetch both endpoints with retry logic
+          TIMETABLE_DATA=$(fetch_with_retry "timetable") || echo '{}'
+          CONTACTS_DATA=$(fetch_with_retry "contacts") || echo '{}'
+
+          # Combine into snapshot with timestamp
+          jq -n --arg ts "$TIMESTAMP" \
+            --argjson timetable "$TIMETABLE_DATA" \
+            --argjson contacts "$CONTACTS_DATA" \
+            '{last_updated: $ts, timetable: $timetable, contacts: $contacts}' > snapshot.json
+
+          echo "✅ Raw data snapshot created with timestamp: $TIMESTAMP"
+
+      # 5️⃣ Commit & push if there are changes
+      - name: Commit and push if changed
+        run: |
+          git add snapshot.json
+          # Check if there are changes to commit
+          if ! git diff --staged --quiet; then
+            git commit -m "Update today snapshot [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi
