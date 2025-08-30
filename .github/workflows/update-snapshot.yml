@@ -1,52 +1,41 @@
-name: Update Snapshot
+name: Update Today Snapshot
 
 on:
   workflow_dispatch:    # manual trigger
   schedule:
-    - cron: '0 0 * * *'  # runs daily at 0:00 UTC → 8:00 Malaysia time
+    - cron: '0 0 * * *'   # runs daily at 00:00 UTC (08:00 Malaysia time)
 
 jobs:
-  update-snapshot:
+  update-today-snapshot:
     runs-on: ubuntu-latest
 
     steps:
       # 1️⃣ Checkout repository
       - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: false   # IMPORTANT: allows PAT to be used for push
+        uses: actions/checkout@v4
 
-      # 2️⃣ Set up Node.js
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
+      # 2️⃣ Install jq
+      - name: Install jq
+        run: sudo apt-get install -y jq
 
-      # 3️⃣ Generate snapshot.json from your on-call roster files
-      - name: Generate snapshot.json
+      # 3️⃣ Save today's roster as snapshot.json with timestamp
+      - name: Save snapshot.json with timestamp
         run: |
-          node -e "
-            const fs = require('fs');
-            const snapshot = {
-              html: fs.readFileSync('index.html', 'utf-8'),
-              script: fs.readFileSync('script.js', 'utf-8'),
-              style: fs.readFileSync('style.css', 'utf-8')
-            };
-            fs.writeFileSync('snapshot.json', JSON.stringify(snapshot, null, 2));
-            console.log('snapshot.json generated successfully');
-          "
+          TODAY_DATA=$(curl -s https://sheets-proxy-backend.onrender.com/api/today || echo '{}')
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "$TODAY_DATA" | jq --arg ts "$TIMESTAMP" '. + {last_updated: $ts}' > snapshot.json
 
-      # 4️⃣ Commit snapshot.json if changed
-      - name: Commit snapshot.json if changed
+      # 4️⃣ Commit & push if there are changes
+      - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add snapshot.json
-          git diff-index --quiet HEAD || git commit -m "chore: update snapshot.json"
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update today snapshot [skip ci]"
 
       # 4️⃣.1 Pull latest changes from remote before pushing
       - name: Pull latest changes
-        run: git pull origin main --rebase
+        run: git pull origin main --rebase --autostash origin main
 
       # 5️⃣ Push changes using PAT (auto-detect branch)
       - name: Push changes using PAT
