@@ -1,5 +1,5 @@
 {
-  "last_updated": "30-08-2025",
+  "last_updated": "31-08-2025",
   "timetable": {
     "range": "Timetable!A2:AI1000",
     "majorDimension": "ROWS",
